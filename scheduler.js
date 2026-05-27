@@ -1,27 +1,22 @@
-// scheduler.js — يشغّل المنظومة كل 24 ساعة تلقائياً
+// scheduler.js — Launch Freeze Mode (max 1 page per 24h during indexing phase)
 const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const LAUNCH_FREEZE_MODE = true; // Set to false after first 4 weeks of indexing
+const STATE_FILE = path.join(__dirname, 'scheduler_state.json');
+const LOG_FILE = path.join(__dirname, 'scheduler.log');
 
 function log(msg) {
-  const t = new Date().toLocaleString('ar-AE');
-  const line = `[${t}] ${msg}`;
+  const line = `[${new Date().toISOString()}] ${msg}`;
   console.log(line);
-  require('fs').appendFileSync('scheduler.log', line + '\n');
+  try { fs.appendFileSync(LOG_FILE, line + '\n'); } catch (e) {}
 }
 
-async function dailyRun() {
-  log('🌅 بدء الجولة اليومية...');
-
+function getLastPublishTimestamp() {
   try {
-    log('📊 تشغيل Optimizer...');
-    execSync('node optimizer.js', { stdio: 'inherit' });
-    log('✅ Optimizer اكتمل');
-  } catch(e) {
-    log('⚠️ خطأ في Optimizer: ' + e.message);
-  }
-
-  log('✅ اكتملت الجولة — القادمة بعد 24 ساعة\n');
-}
-
-dailyRun();
-setInterval(dailyRun, 24 * 60 * 60 * 1000);
-log('🚀 Scheduler يعمل في الخلفية...');
+    if (fs.existsSync(STATE_FILE)) {
+      const data = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      return data.last_publish_at ? new Date(data.last_publish_at).getTime() : 0;
+    }
+  } catch (e) { co

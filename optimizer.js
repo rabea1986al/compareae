@@ -1,43 +1,39 @@
-const fs = require('fs');const path = require('path');
+// optimizer.js — Smart Feedback Loop (Dwell Time + Affiliate Clicks)
+const fs   = require('fs');
+const path = require('path');
 
-function analyzeClicks() {
-  const logFile = 'clicks.log';
-  const learningFile = 'learning.json';
-  
-  if (!fs.existsSync(logFile)) {
-    console.log('No clicks.log found yet');
+const LOG_FILE      = path.join(__dirname, 'clicks.log');
+const LEARNING_FILE = path.join(__dirname, 'learning.json');
+
+function analyzeEngagement() {
+  console.log('[OPTIMIZER] Starting engagement analysis...');
+
+  if (!fs.existsSync(LOG_FILE)) {
+    console.log('[OPTIMIZER] No clicks.log yet — skipping.');
     return;
   }
-  
-  const logs = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
-  const clicks = {};
-  
-  logs.forEach(line => {
+
+  const lines = fs.readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
+  const pageStats = {};
+
+  lines.forEach(line => {
     try {
       const entry = JSON.parse(line);
-      if (entry.page) {
-        clicks[entry.page] = (clicks[entry.page] || 0) + 1;
-      }
-    } catch(e) {}
-  });
-  
-  const sorted = Object.entries(clicks).sort((a,b) => b[1]-a[1]);
-  console.log('Top pages by clicks:');
-  sorted.slice(0,5).forEach(([page, count]) => {
-    console.log(' -', page, ':', count, 'clicks');
-  });
-  
-  let learning = {};
-  if (fs.existsSync(learningFile)) {
-    try { learning = JSON.parse(fs.readFileSync(learningFile,'utf8')); } catch(e) {}
-  }
-  
-  learning.topPages = sorted.slice(0,5).map(([p]) => p);
-  learning.lastAnalyzed = new Date().toISOString();
-  learning.totalClicks = logs.length;
-  
-  fs.writeFileSync(learningFile, JSON.stringify(learning, null, 2));
-  console.log('learning.json updated!');
-}
+      const page = entry.page || '/';
 
-analyzeClicks();
+      if (!pageStats[page]) {
+        pageStats[page] = {
+          views: 0,
+          affiliateClicks: 0,
+          dwellEvents: 0,       // users who stayed 45s+
+          totalDwellSeconds: 0,
+          companies: {}
+        };
+      }
+
+      if (entry.type === 'view')            pageStats[page].views++;
+      if (entry.type === 'dwell_45s')       pageStats[page].dwellEvents++;
+      if (entry.type === 'affiliate_click') {
+        pageStats[page].affiliateClicks++;
+        if (entry.company) {
+          p

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /drafts/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /temp/
+Disallow: /?
+Disallow: /*?*
+Disallow: /*?
+
+Sitemap: https://compareae.com/sitemap.xml

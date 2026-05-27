@@ -1,171 +1,238 @@
-// agent.js — يبني صفحات المقارنة (عربي + إنجليزي)
+// agent.js — CompareAE Page Generator with Safety Hardening
 require('dotenv').config();
-const fs    = require('fs');
-const path  = require('path');
-const OpenAI    = require('openai');
-const Anthropic = require('@anthropic-ai/sdk');
+const fs   = require('fs');
+const path = require('path');
+const OpenAI = require('openai');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const OUTPUT_DIR = path.join(__dirname, 'pages');
-if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR);
+const LIVE_PAGES_DIR  = path.join(__dirname, 'pages');
+const SAFE_DRAFTS_DIR = path.join(__dirname, 'drafts');
 
-// ── تحميل الكلمات المفتاحية من learning.json إن وجدت
+if (!fs.existsSync(LIVE_PAGES_DIR))  fs.mkdirSync(LIVE_PAGES_DIR);
+if (!fs.existsSync(SAFE_DRAFTS_DIR)) fs.mkdirSync(SAFE_DRAFTS_DIR);
+
+// ── SAFETY LAYER: Sensitive topic triggers → drafts folder (requires human review)
+const SENSITIVE_TOPIC_TRIGGERS = [
+  'legal interpretation', 'claims disputes', 'pricing advice', 'liability',
+  'flood', 'storm', 'denied claims', 'accident fault', 'total loss',
+  'uninsured driver', 'regulatory guidance', 'insurer comparisons',
+  'مطالبات', 'سيول', 'أمطار', 'قانون', 'تعويض', 'حادث'
+];
+
+// ── SAFETY LAYER: Banned unsupported phrases (block publication)
+const BANNED_UNSUPPORTED_PHRASES = [
+  'best insurer', 'cheapest policy', 'guaranteed claims', 'guaranteed savings',
+  'أرخص تأمين مطلق', 'أفضل شركة تأمين'
+];
+
+// ── Pre-publish quality gate
+function runPrePublishQualityGate(draftHtml) {
+  const wordCount = draftHtml.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
+  if (wordCount < 600) {
+    console.warn(`  ⚠️ REJECTED: Word count too low (${wordCount} < 600)`);
+    return false;
+  }
+  const htmlLower = draftHtml.toLowerCase();
+  const hasBannedPhrase = BANNED_UNSUPPORTED_PHRASES.some(p => htmlLower.includes(p.toLowerCase()));
+  if (hasBannedPhrase) {
+    console.warn('  ⚠️ REJECTED: Contains banned unsupported phrase');
+    return false;
+  }
+  // Block generic AI filler patterns
+  if (draftHtml.includes('In conclusion') || draftHtml.includes('Furthermore, it is important')) {
+    console.warn('  ⚠️ REJECTED: Contains generic AI filler phrases');
+    return false;
+  }
+  return true;
+}
+
+// ── Route page to live or drafts based on sensitivity
+function processAgentGeneratedOutput(slug, rawHtmlContent) {
+  const cleanSlug = slug.toLowerCase().trim().replace(/[^a-z0-9؀-ۿ-]/g, '-');
+  const contentLower = rawHtmlContent.toLowerCase();
+
+  const requiresHumanReview = SENSITIVE_TOPIC_TRIGGERS.some(
+    trigger => cleanSlug.includes(trigger.toLowerCase()) || contentLower.includes(trigger.toLowerCase())
+  );
+
+  if (!runPrePublishQualityGate(rawHtmlContent)) {
+    return { status: 'rejected', slug: cleanSlug };
+  }
+
+  if (requiresHumanReview) {
+    const draftPath = path.join(SAFE_DRAFTS_DIR, `${cleanSlug}.html`);
+    fs.writeFileSync(draftPath, `<!-- requires_human_review=true -->\n${rawHtmlContent}`, 'utf8');
+    console.log(`  📋 DRAFT SAVED (requires review): drafts/${cleanSlug}.html`);
+    return { status: 'draft_saved', slug: cleanSlug };
+  }
+
+  const livePath = path.join(LIVE_PAGES_DIR, `${cleanSlug}.html`);
+  fs.writeFileSync(livePath, rawHtmlContent, 'utf8');
+  console.log(`  ✅ PUBLISHED: pages/${cleanSlug}.html`);
+  return { status: 'published', slug: cleanSlug };
+}
+
+// ── Load keyword targets
 function loadTargets() {
   const base = [
-    { keyword: 'Toyota Corolla insurance Dubai',      lang: 'en', city: 'Dubai'      },
-    { keyword: 'Nissan Sunny insurance Abu Dhabi',    lang: 'en', city: 'Abu Dhabi'  },
-    { keyword: 'cheap car insurance UAE expats',      lang: 'en', city: 'UAE'        },
-    { keyword: 'third party car insurance Dubai',     lang: 'en', city: 'Dubai'      },
-    { keyword: 'best car insurance Sharjah',          lang: 'en', city: 'Sharjah'    },
-    { keyword: 'تأمين تويوتا كورولا دبي',             lang: 'ar', city: 'دبي'        },
-    { keyword: 'تأمين نيسان صني أبوظبي',              lang: 'ar', city: 'أبوظبي'     },
-    { keyword: 'تأمين سيارة رخيص للمقيمين الإمارات', lang: 'ar', city: 'الإمارات'   },
-    { keyword: 'تأمين ضد الغير دبي رخيص',             lang: 'ar', city: 'دبي'        },
-    { keyword: 'أفضل تأمين سيارة الشارقة',             lang: 'ar', city: 'الشارقة'    },
+    { keyword: 'Toyota Corolla insurance Dubai',             lang: 'en', city: 'Dubai',      intent: 'expat_value' },
+    { keyword: 'Nissan Sunny insurance Abu Dhabi',           lang: 'en', city: 'Abu Dhabi',  intent: 'budget_comparison' },
+    { keyword: 'car insurance UAE expats comprehensive',     lang: 'en', city: 'UAE',        intent: 'expat_guide' },
+    { keyword: 'third party car insurance Dubai young driver',lang: 'en', city: 'Dubai',     intent: 'young_driver' },
+    { keyword: 'EV Tesla car insurance UAE agency repair',   lang: 'en', city: 'UAE',        intent: 'ev_specialist' },
+    { keyword: 'تأمين تويوتا كورولا دبي ضد الغير',          lang: 'ar', city: 'دبي',        intent: 'tpl_savings' },
+    { keyword: 'تأمين شامل أبوظبي سائق جديد',              lang: 'ar', city: 'أبوظبي',     intent: 'new_driver' },
+    { keyword: 'تأمين سيارة رخيص الشارقة إصلاح وكالة',    lang: 'ar', city: 'الشارقة',    intent: 'agency_repair' },
+    { keyword: 'تأمين ضد الغير دبي نقاط سوداء',            lang: 'ar', city: 'دبي',        intent: 'black_points' },
+    { keyword: 'تأمين سيارات كهربائية الإمارات BYD تسلا',  lang: 'ar', city: 'الإمارات',   intent: 'ev_arabic' },
   ];
 
   const learnFile = path.join(__dirname, 'learning.json');
   if (fs.existsSync(learnFile)) {
-    const learning = JSON.parse(fs.readFileSync(learnFile, 'utf8'));
-    const newKeywords = learning.history
-      .flatMap(h => h.newKeywords || [])
-      .filter(k => !base.find(b => b.keyword === k))
-      .map(k => ({
-        keyword: k,
-        lang: /[\u0600-\u06FF]/.test(k) ? 'ar' : 'en',
-        city: /[\u0600-\u06FF]/.test(k) ? 'الإمارات' : 'UAE'
-      }));
-    return [...base, ...newKeywords];
+    try {
+      const learning = JSON.parse(fs.readFileSync(learnFile, 'utf8'));
+      const newKeywords = (learning.topAffiliateSlugs || [])
+        .filter(k => !base.find(b => b.keyword === k))
+        .map(k => ({
+          keyword: k,
+          lang: /[؀-ۿ]/.test(k) ? 'ar' : 'en',
+          city: /[؀-ۿ]/.test(k) ? 'الإمارات' : 'UAE',
+          intent: 'data_driven'
+        }));
+      return [...base, ...newKeywords];
+    } catch (e) {}
   }
   return base;
 }
 
-// ── GPT يجمع بيانات المقارنة (5 شركات)
-async function researchData(keyword, city, lang) {
-  console.log(`  🔍 GPT يبحث: "${keyword}"`);
+// ── GPT-4o research with enforced prompt constraints
+async function researchData(keyword, city, lang, intent) {
+  console.log(`  🔍 Researching: "${keyword}" [intent: ${intent}]`);
   const isAr = lang === 'ar';
 
-  const res = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [{
-      role: 'system',
-      content: 'أنت محلل بيانات تأمين متخصص في سوق الإمارات. أرجع JSON فقط بدون أي نص إضافي.'
-    }, {
-      role: 'user',
-      content: `أعطني بيانات مقارنة تأمين السيارة في ${city} للكلمة: "${keyword}".
-اللغة: ${isAr ? 'العربية' : 'الإنجليزية'}.
+  const systemPrompt = `You are a UAE car insurance data analyst. Return ONLY valid JSON.
 
-أرجع JSON بهذا الشكل:
+STRICT RULES YOU MUST FOLLOW:
+1. ZERO PRICING POLICY: Never write specific AED amounts (e.g., "AED 1200"). Use ONLY underwriting factors and broad indicative ranges like "typically starts from a lower range for standard sedans" or "generally higher for agency repair coverage".
+2. CONDITIONAL WORDING ONLY: Use "may cover", "typically structures", "varies by insurer", "subject to policy terms". Never use definitive assertions.
+3. UAE TERMINOLOGY: Always use "Agency Repair vs Non-Agency Repair", "Black Points", "Salik", "RTA inspection", "GCC coverage", "Comprehensive (Shaamil)", "Third Party Liability (Ded Al-Ghair)".
+4. LANGUAGE INTENT: ${isAr ? 'Arabic pages must address regulatory savings, local pain points, Black Points impact, and UAE-specific concerns. Do NOT translate from English — write natively.' : 'English pages must focus on expat requirements, agency repair concerns, EV policies, and premium comparison factors.'}
+5. No "best insurer" or "cheapest policy" absolute claims.`;
+
+  const userPrompt = `Generate car insurance comparison data for the UAE market.
+Keyword: "${keyword}"
+City/Region: ${city}
+User Intent: ${intent}
+Language: ${isAr ? 'Arabic' : 'English'}
+
+Return this exact JSON structure:
 {
-  "pageTitle": "عنوان الصفحة",
-  "heroText": "نص جذاب سطر واحد",
+  "pageTitle": "specific title targeting the keyword (under 65 chars)",
+  "heroText": "one compelling line addressing the user's real concern (not generic)",
+  "metaDescription": "unique meta description under 155 chars",
+  "intentSummary": "2-sentence explanation of what the user is looking for",
   "companies": [
     {
-      "name": "اسم الشركة",
+      "name": "Real UAE insurer name",
       "logo": "🏢",
-      "priceFrom": "750",
+      "priceRange": "${isAr ? 'نطاق سعري تقريبي بدون أرقام محددة' : 'indicative range description without specific AED'}",
       "currency": "${isAr ? 'د.إ' : 'AED'}",
       "type": "${isAr ? 'شامل أو ضد الغير' : 'Comprehensive or TPL'}",
       "gcc": true,
       "agencyRepair": true,
-      "replacement": true,
+      "replacement": false,
       "roadside": true,
-      "rating": 4.5,
+      "rating": 4.3,
       "badge": "",
-      "affiliateUrl": "https://yallacompare.com/ae/en-us/products/motor"
+      "affiliateUrl": "https://yallacompare.com/ae/en-us/products/motor",
+      "intentFit": "why this insurer suits the user's specific intent"
     }
+  ],
+  "localInsight": "1-2 sentences of UAE-specific insight relevant to this keyword (e.g., Black Points impact, RTA requirements, flood extension relevance)",
+  "faqItems": [
+    { "q": "intent-specific question", "a": "conditional, factual answer using UAE terminology" }
   ]
 }
-أعطني 5 شركات حقيقية تعمل في الإمارات مرتبة من الأرخص للأغلى.
-الشركة الثانية أو الثالثة ضعها badge = "${isAr ? 'الأكثر شعبية' : 'Most Popular'}"`
-    }],
-    max_tokens: 1200,
+Return 5 real UAE insurers. Mark one as badge = "${isAr ? 'الأكثر ملاءمة' : 'Best Fit'}".`;
+
+  const res = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    max_tokens: 1600,
     response_format: { type: 'json_object' }
   });
 
   return JSON.parse(res.choices[0].message.content);
 }
 
-// ── بناء صفحة HTML احترافية
-function buildPage(data, lang) {
-  console.log(`  🎨 بناء الصفحة...`);
+// ── Build hardened HTML page
+function buildPage(data, lang, keyword) {
   const isAr       = lang === 'ar';
   const dir        = isAr ? 'rtl' : 'ltr';
   const fontFamily = isAr ? "'Tajawal', sans-serif" : "'Inter', sans-serif";
   const googleFont = isAr
     ? 'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap'
-    : 'https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap';
+    : 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap';
 
   const t = {
-    sectionTitle: isAr ? 'اختر عرضك — مقارنة مباشرة'        : 'Choose Your Plan — Direct Comparison',
-    perYear:      isAr ? '/سنة'                               : '/year',
-    gcc:          isAr ? 'تغطية GCC'                         : 'GCC Cover',
-    agency:       isAr ? 'إصلاح وكالة'                       : 'Agency Repair',
-    replacement:  isAr ? 'سيارة بديلة'                       : 'Replacement Car',
-    roadside:     isAr ? 'مساعدة الطريق'                     : 'Roadside Assist',
-    ctaBtn:       isAr ? 'شوف سعرك ←'                        : 'See Your Price →',
-    pill1:        isAr ? '✅ بدون رسوم'                       : '✅ No Hidden Fees',
-    pill2:        isAr ? '⚡ نتائج فورية'                     : '⚡ Instant Results',
-    pill3:        isAr ? '🏆 شركات معتمدة'                   : '🏆 Licensed Companies',
-    pill4:        isAr ? '🔒 بياناتك آمنة'                   : '🔒 Your Data is Safe',
-    disclaimer:   isAr
-      ? '<strong>⚠️ إشعار مهم:</strong> المعلومات المعروضة هي لأغراض <strong>المقارنة فقط</strong>. نحن لسنا وسيطاً أو وكيل تأمين مرخصاً ولا نبيع أي منتج تأمين مباشرة. جميع الأسعار تقديرية وقد تتغير بناءً على بياناتك الشخصية. القرار النهائي بيدك أنت.'
-      : '<strong>⚠️ Important Notice:</strong> Information on this site is for <strong>comparison purposes only</strong>. We are not a licensed insurance broker and do not sell insurance directly. All prices are estimates and may vary based on your personal details.',
-    faqTitle:     isAr ? 'أسئلة شائعة' : 'Frequently Asked Questions',
-    faq: isAr ? [
-      { q: 'ما الفرق بين التأمين الشامل وضد الغير؟',
-        a: 'الشامل يغطي سيارتك وسيارة الطرف الآخر. ضد الغير يغطي الطرف الآخر فقط وهو أرخص.' },
-      { q: 'هل الأسعار المعروضة دقيقة؟',
-        a: 'الأسعار تقديرية. السعر الفعلي يعتمد على سنة السيارة وعمرك وسجل القيادة.' },
-      { q: 'هل تغطية GCC مهمة؟',
-        a: 'نعم إذا كنت تسافر لدول الخليج. تأكد منها قبل السفر.' },
-      { q: 'كم يستغرق الحصول على التأمين؟',
-        a: 'أقل من 10 دقائق. البوليصة تُرسل على إيميلك فوراً.' },
-    ] : [
-      { q: 'What is the difference between Comprehensive and TPL?',
-        a: 'Comprehensive covers your car and the other party. TPL covers only the other party and is cheaper.' },
-      { q: 'Are the prices shown accurate?',
-        a: 'Prices are estimates. The actual price depends on your car year, age, and driving history.' },
-      { q: 'Is GCC cover important?',
-        a: 'Yes if you travel to GCC countries. Make sure your policy includes it.' },
-      { q: 'How long does it take to get insured?',
-        a: 'Less than 10 minutes online. Policy is emailed immediately after payment.' },
-    ],
-    logoName:   isAr ? 'قارن<span>بلس</span>'  : 'Compare<span>Plus</span>',
-    navBadge:   isAr ? '🔒 مقارنة مجانية 100%' : '🔒 100% Free Comparison',
-    waText:     isAr ? '💬 تحتاج مساعدة؟'      : '💬 Need Help?',
-    footerText: isAr
-      ? '© 2025 قارن بلس — موقع مقارنة مستقل غير مرتبط بأي شركة تأمين'
-      : '© 2025 ComparePlus — Independent comparison site, not affiliated with any insurer',
-    privacy:    isAr ? 'سياسة الخصوصية' : 'Privacy Policy',
-    terms:      isAr ? 'الشروط والأحكام' : 'Terms & Conditions',
-    contact:    isAr ? 'تواصل معنا'      : 'Contact Us',
-    lastUpdate: isAr ? 'آخر تحديث'       : 'Last updated',
-    pricesNote: isAr ? 'الأسعار لأغراض المقارنة فقط' : 'Prices for comparison purposes only',
+    sectionTitle:  isAr ? 'قارن خياراتك — مقارنة مباشرة'            : 'Compare Your Options',
+    perYear:       isAr ? '/سنة (تقديري)'                             : '/year (indicative)',
+    gcc:           isAr ? 'تغطية GCC'                                : 'GCC Cover',
+    agency:        isAr ? 'إصلاح وكالة (Agency Repair)'              : 'Agency Repair',
+    replacement:   isAr ? 'سيارة بديلة'                              : 'Replacement Car',
+    roadside:      isAr ? 'مساعدة الطريق'                            : 'Roadside Assist',
+    ctaBtn:        isAr ? 'احصل على عرض السعر ←'                     : 'Get a Quote →',
+    pill1:         isAr ? '✅ مقارنة مجانية'                          : '✅ Free Comparison',
+    pill2:         isAr ? '⚡ بدون التزام'                            : '⚡ No Obligation',
+    pill3:         isAr ? '🏆 شركات مرخصة في الإمارات'               : '🏆 UAE Licensed Insurers',
+    pill4:         isAr ? '🔒 بياناتك محمية'                          : '🔒 Data Protected',
+    disclaimer:    isAr
+      ? '<strong>⚠️ إشعار مهم:</strong> المعلومات على هذا الموقع لأغراض <strong>المقارنة فقط</strong>. نحن لسنا وسيطاً أو وكيل تأمين مرخصاً. جميع الأسعار تقديرية وقد تختلف بناءً على بياناتك الشخصية وشروط الاكتتاب. القرار النهائي يعود لك ولشركة التأمين.'
+      : '<strong>⚠️ Important:</strong> Information on this site is for <strong>comparison purposes only</strong>. We are not a licensed insurance broker. All pricing is indicative and varies based on your personal underwriting profile. Always verify directly with the insurer.',
+    faqTitle:      isAr ? 'أسئلة شائعة'                              : 'Frequently Asked Questions',
+    pricesNote:    isAr ? 'الأسعار تقديرية لأغراض المقارنة فقط'      : 'Prices are indicative for comparison purposes only',
+    lastUpdate:    isAr ? 'آخر مراجعة'                               : 'Last reviewed',
+    localInsightLabel: isAr ? '📍 نصيحة محلية للإمارات'             : '📍 UAE Local Insight',
+    intentFitLabel:    isAr ? 'لماذا يناسبك؟'                        : 'Why it fits your needs',
   };
 
-  const companiesHTML = data.companies.map(c => `
+  const FOOTER_LINKS = `
+    <a href="/about">${isAr ? 'من نحن' : 'About'}</a>
+    <a href="/contact">${isAr ? 'تواصل معنا' : 'Contact'}</a>
+    <a href="/privacy-policy">${isAr ? 'سياسة الخصوصية' : 'Privacy Policy'}</a>
+    <a href="/terms-and-conditions">${isAr ? 'الشروط والأحكام' : 'Terms & Conditions'}</a>
+    <a href="/affiliate-disclosure">${isAr ? 'إفصاح الأفلييت' : 'Affiliate Disclosure'}</a>
+    <a href="/editorial-policy">${isAr ? 'السياسة التحريرية' : 'Editorial Policy'}</a>`;
+
+  const companiesHTML = (data.companies || []).map(c => `
     <div class="card ${c.badge ? 'featured' : ''}">
       ${c.badge ? `<div class="badge">${c.badge}</div>` : ''}
-      <div class="company-logo">${c.logo}</div>
+      <div class="company-logo">${c.logo || '🏢'}</div>
       <div class="company-name">${c.name}</div>
-      <div class="price">${c.priceFrom} <span class="currency">${c.currency}${t.perYear}</span></div>
-      <div class="stars">${'★'.repeat(Math.floor(c.rating))}${'☆'.repeat(5 - Math.floor(c.rating))}</div>
+      <div class="price-range">${c.priceRange}</div>
+      <div class="stars">${'★'.repeat(Math.floor(c.rating || 4))}${'☆'.repeat(5 - Math.floor(c.rating || 4))}</div>
       <ul class="features">
         <li>${c.gcc          ? '✅' : '❌'} ${t.gcc}</li>
         <li>${c.agencyRepair ? '✅' : '❌'} ${t.agency}</li>
         <li>${c.replacement  ? '✅' : '❌'} ${t.replacement}</li>
         <li>${c.roadside     ? '✅' : '❌'} ${t.roadside}</li>
       </ul>
-      <a class="cta-btn" href="${c.affiliateUrl}" target="_blank" rel="noopener">
+      ${c.intentFit ? `<p class="intent-fit"><em>${t.intentFitLabel}:</em> ${c.intentFit}</p>` : ''}
+      <a class="cta-btn" href="${c.affiliateUrl}" target="_blank" rel="sponsored noopener">
         ${t.ctaBtn}
       </a>
     </div>`).join('');
 
-  const faqHTML = t.faq.map(f =>
+  const faqHTML = (data.faqItems || []).map(f =>
     `<details><summary>${f.q}</summary><p>${f.a}</p></details>`).join('');
+
+  const localInsightHTML = data.localInsight
+    ? `<div class="local-insight"><strong>${t.localInsightLabel}:</strong> ${data.localInsight}</div>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="${lang}" dir="${dir}">
@@ -173,7 +240,7 @@ function buildPage(data, lang) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${data.pageTitle}</title>
-  <meta name="description" content="${data.heroText}">
+  <meta name="description" content="${data.metaDescription || data.heroText}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="${googleFont}" rel="stylesheet">
   <style>
@@ -182,165 +249,43 @@ function buildPage(data, lang) {
     nav{background:white;padding:15px 40px;display:flex;align-items:center;
         justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,.08);
         position:sticky;top:0;z-index:100}
-    .logo{font-size:1.4em;font-weight:900;color:#0e7c7b}
+    .logo{font-size:1.4em;font-weight:900;color:#0e7c7b;text-decoration:none}
     .logo span{color:#f72585}
-    .nav-badge{background:#e8f5e9;color:#2e7d32;padding:5px 12px;
-               border-radius:20px;font-size:.82em}
+    .nav-links a{margin:0 10px;color:#444;text-decoration:none;font-size:.9em}
+    .nav-links a:hover{color:#0e7c7b}
     .hero{background:linear-gradient(135deg,#0e7c7b,#0a5c5b);color:white;
           padding:60px 20px;text-align:center;position:relative;overflow:hidden}
-    .hero::before{content:'🚗';font-size:120px;position:absolute;opacity:.07;
-                  bottom:-20px;left:50%;transform:translateX(-50%)}
     .hero h1{font-size:2em;font-weight:900;margin-bottom:12px;line-height:1.3}
-    .hero p{font-size:1.1em;opacity:.9;margin-bottom:25px}
+    .hero p{font-size:1.05em;opacity:.9;margin-bottom:25px;max-width:650px;margin-left:auto;margin-right:auto}
     .trust-pills{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
     .pill{background:rgba(255,255,255,.15);padding:6px 16px;border-radius:20px;font-size:.85em}
     .section-title{text-align:center;padding:40px 20px 20px;font-size:1.4em;font-weight:700}
     .cards-wrapper{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;
                    padding:10px 20px 40px;max-width:1200px;margin:0 auto}
-    .card{background:white;border-radius:16px;padding:28px 22px;width:210px;
+    .card{background:white;border-radius:16px;padding:28px 22px;width:215px;
           text-align:center;position:relative;box-shadow:0 4px 20px rgba(0,0,0,.08);
           transition:transform .2s,box-shadow .2s;border:2px solid transparent}
     .card:hover{transform:translateY(-5px);box-shadow:0 8px 30px rgba(0,0,0,.15)}
     .card.featured{border-color:#f72585;transform:scale(1.05)}
-    .card.featured:hover{transform:scale(1.05) translateY(-5px)}
     .badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);
            background:#f72585;color:white;padding:4px 14px;border-radius:20px;
            font-size:.78em;font-weight:700;white-space:nowrap}
     .company-logo{font-size:2.2em;margin-bottom:6px}
-    .company-name{font-size:1em;font-weight:700;margin-bottom:10px}
-    .price{font-size:1.7em;font-weight:900;color:#0e7c7b;margin-bottom:4px}
-    .currency{font-size:.48em;color:#666}
+    .company-name{font-size:1em;font-weight:700;margin-bottom:8px}
+    .price-range{font-size:.82em;color:#666;margin-bottom:8px;font-style:italic;line-height:1.4}
     .stars{color:#ffc107;font-size:1em;margin-bottom:14px}
-    .features{list-style:none;margin-bottom:18px;text-align:${isAr ? 'right' : 'left'}}
-    .features li{padding:5px 0;font-size:.85em;border-bottom:1px solid #f0f0f0;color:#444}
+    .features{list-style:none;margin-bottom:14px;text-align:${isAr ? 'right' : 'left'}}
+    .features li{padding:5px 0;font-size:.83em;border-bottom:1px solid #f0f0f0;color:#444}
     .features li:last-child{border-bottom:none}
+    .intent-fit{font-size:.78em;color:#666;margin-bottom:12px;line-height:1.5;text-align:${isAr?'right':'left'}}
     .cta-btn{display:block;background:linear-gradient(135deg,#f72585,#d61a6e);
              color:white;padding:12px;border-radius:10px;text-decoration:none;
-             font-weight:700;font-size:.95em;transition:opacity .2s}
+             font-weight:700;font-size:.9em;transition:opacity .2s}
     .cta-btn:hover{opacity:.88}
+    .local-insight{background:#e8f5e9;border-${isAr?'right':'left'}:4px solid #2e7d32;
+                   max-width:900px;margin:0 auto 25px;padding:15px 20px;
+                   border-radius:8px;font-size:.88em;color:#1b5e20;line-height:1.7}
     .disclaimer{background:#fff8e1;border-${isAr?'right':'left'}:4px solid #ffc107;
-                margin:0 auto 40px;max-width:900px;padding:16px 20px;
+                max-width:900px;margin:0 auto 40px;padding:16px 20px;
                 border-radius:8px;font-size:.85em;color:#555;line-height:1.7}
-    .faq-section{max-width:900px;margin:0 auto 50px;padding:0 20px}
-    .faq-section h2{font-size:1.3em;margin-bottom:20px;color:#0e7c7b}
-    details{background:white;border-radius:10px;margin-bottom:10px;
-            padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer}
-    summary{font-weight:700;color:#1a1a2e;list-style:none}
-    summary::after{content:' ＋';float:${isAr?'left':'right'};color:#0e7c7b}
-    details[open] summary::after{content:' −'}
-    details p{margin-top:10px;color:#555;font-size:.92em;line-height:1.7}
-    footer{background:#1a1a2e;color:#aaa;text-align:center;padding:25px;
-           font-size:.82em;line-height:1.8}
-    footer a{color:#0e7c7b;text-decoration:none}
-    .wa-float{position:fixed;bottom:25px;${isAr?'left':'right'}:25px;
-              background:#25d366;color:white;padding:14px 20px;border-radius:50px;
-              text-decoration:none;font-weight:700;font-size:.95em;
-              box-shadow:0 4px 15px rgba(37,211,102,.4);
-              display:flex;align-items:center;gap:8px;z-index:999}
-    @media(max-width:768px){
-      .hero h1{font-size:1.4em}
-      .card{width:100%;max-width:340px}
-      .card.featured{transform:scale(1)}
-    }
-  </style>
-</head>
-<body>
-<nav>
-  <div class="logo">${t.logoName}</div>
-  <div class="nav-badge">${t.navBadge}</div>
-</nav>
-<section class="hero">
-  <h1>${data.pageTitle}</h1>
-  <p>${data.heroText}</p>
-  <div class="trust-pills">
-    <span class="pill">${t.pill1}</span>
-    <span class="pill">${t.pill2}</span>
-    <span class="pill">${t.pill3}</span>
-    <span class="pill">${t.pill4}</span>
-  </div>
-</section>
-<p class="section-title">${t.sectionTitle}</p>
-<div class="cards-wrapper">${companiesHTML}</div>
-<div class="disclaimer">${t.disclaimer}</div>
-<div class="faq-section">
-  <h2>${t.faqTitle}</h2>
-  ${faqHTML}
-</div>
-<footer>
-  <p>${t.footerText}</p>
-  <p style="margin-top:6px">
-    <a href="#">${t.privacy}</a> | <a href="#">${t.terms}</a> | <a href="#">${t.contact}</a>
-  </p>
-  <p style="margin-top:8px;font-size:.78em">
-    ${t.lastUpdate}: ${new Date().toLocaleDateString(isAr?'ar-AE':'en-AE')} | ${t.pricesNote}
-  </p>
-</footer>
-<a class="wa-float" href="https://wa.me/" target="_blank">${t.waText}</a>
-<script>
-  document.querySelectorAll('.cta-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      fetch('/track', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          page: window.location.pathname,
-          company: this.closest('.card').querySelector('.company-name').textContent,
-          time: new Date().toISOString(),
-          lang: document.documentElement.lang,
-          type: 'click'
-        })
-      }).catch(()=>{});
-    });
-  });
-  fetch('/track', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      page: window.location.pathname,
-      company: 'PAGE_VIEW',
-      time: new Date().toISOString(),
-      lang: document.documentElement.lang,
-      type: 'view'
-    })
-  }).catch(()=>{});
-</script>
-</body>
-</html>`;
-}
-
-function validatePage(html) {
-  return html.includes('cta-btn') &&
-         html.includes('disclaimer') &&
-         html.includes('yallacompare.com');
-}
-
-async function run() {
-  console.log('🚀 بدء توليد الصفحات...\n');
-  const targets = loadTargets();
-  console.log(`📋 عدد الصفحات: ${targets.length}\n`);
-
-  for (const target of targets) {
-    console.log(`\n📄 "${target.keyword}" [${target.lang.toUpperCase()}]`);
-    try {
-      const data = await researchData(target.keyword, target.city, target.lang);
-      const html = buildPage(data, target.lang);
-
-      if (!validatePage(html)) {
-        console.log(`  ⚠️ تحذير: الصفحة ناقصة عناصر مهمة`);
-      }
-
-      const filename = target.keyword
-        .replace(/[^a-z0-9أ-ي\s]/gi, '')
-        .trim().replace(/\s+/g, '-').toLowerCase() + '.html';
-
-      fs.writeFileSync(path.join(OUTPUT_DIR, filename), html, 'utf8');
-      console.log(`  ✅ محفوظ: pages/${filename}`);
-      await new Promise(r => setTimeout(r, 2000));
-    } catch(err) {
-      console.error(`  ❌ خطأ:`, err.message);
-    }
-  }
-  console.log('\n🎉 اكتمل! الصفحات جاهزة في مجلد pages/');
-}
-
-run();
+    .faq-section

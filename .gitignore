@@ -1,0 +1,4 @@
+node_modules/
+*.log
+scheduler_state.json
+.env
