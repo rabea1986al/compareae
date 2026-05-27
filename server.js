@@ -5,7 +5,7 @@ const path = require('path');
 
 const LOG_FILE  = path.join(__dirname, 'clicks.log');
 const PAGES_DIR = path.join(__dirname, 'pages');
-const PORT      = 3000;
+const PORT      = process.env.PORT || 3000;
 
 http.createServer((req, res) => {
 
