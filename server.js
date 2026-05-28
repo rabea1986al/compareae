@@ -14,44 +14,28 @@ const GLOBAL_NOINDEX = process.env.GLOBAL_NOINDEX === 'true';
 const LOG_FILE = path.join(__dirname, 'clicks.log');
 const PAGES_DIR = path.join(__dirname, 'pages');
 
-// RENDER SAFE PROXY HANDLING
-app.enable('trust proxy');
-
-// SECURITY + PERFORMANCE
+app.set('trust proxy', 1); // Render: exactly 1 reverse-proxy hop
 app.use(compression());
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(helmet.hsts({ maxAge: 31536000, includeSubDomains: true, preload: true }));
 
-// RATE LIMITING
 const limiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false });
 app.use(limiter);
-
-// BODY PARSING
 app.use(express.json({ limit: '10kb' }));
-
-// STATIC ASSETS
 app.use(express.static(path.join(__dirname, 'public')));
 
-// SERVE sitemap.xml & robots.txt from root
 app.get('/sitemap.xml', (req, res) => {
-  const sitemapPath = path.join(__dirname, 'sitemap.xml');
-  if (fs.existsSync(sitemapPath)) {
-    res.setHeader('Content-Type', 'application/xml');
-    return res.sendFile(sitemapPath);
-  }
+  const p = path.join(__dirname, 'sitemap.xml');
+  if (fs.existsSync(p)) { res.setHeader('Content-Type', 'application/xml'); return res.sendFile(p); }
   res.status(404).send('Sitemap not generated yet.');
 });
 
 app.get('/robots.txt', (req, res) => {
-  const robotsPath = path.join(__dirname, 'robots.txt');
-  if (fs.existsSync(robotsPath)) {
-    res.setHeader('Content-Type', 'text/plain');
-    return res.sendFile(robotsPath);
-  }
+  const p = path.join(__dirname, 'robots.txt');
+  if (fs.existsSync(p)) { res.setHeader('Content-Type', 'text/plain'); return res.sendFile(p); }
   res.status(404).send('Not Found');
 });
 
-// COMPLIANCE HEADERS
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -59,173 +43,133 @@ app.use((req, res, next) => {
   next();
 });
 
-// BLOCK SENSITIVE EXTENSIONS
 app.use((req, res, next) => {
-  const blockedExtensions = ['.log', '.tmp', '.json'];
-  const isBlocked = blockedExtensions.some(ext => req.path.endsWith(ext));
-  if (isBlocked) {
+  const blocked = ['.log', '.tmp', '.json'];
+  if (blocked.some(ext => req.path.endsWith(ext))) {
     res.set('X-Robots-Tag', 'noindex, nofollow');
     return res.status(404).send('Not Found');
   }
   next();
 });
 
-// CANONICAL ENFORCER
 app.use((req, res, next) => {
   const host = req.headers['x-forwarded-host'] || req.get('host');
-  let normalizedPath = req.originalUrl.split('?')[0];
-  normalizedPath = normalizedPath.replace(/\/{2,}/g, '/').toLowerCase();
-  if (normalizedPath.length > 1 && normalizedPath.endsWith('/')) {
-    normalizedPath = normalizedPath.slice(0, -1);
-  }
-  const cleanRequestPath = req.path.replace(/\/{2,}/g, '/').toLowerCase();
+  let norm = req.originalUrl.split('?')[0].replace(/\/{2,}/g, '/').toLowerCase();
+  if (norm.length > 1 && norm.endsWith('/')) norm = norm.slice(0, -1);
   const isWww = /^www\./i.test(host);
-  const shouldRedirect = isWww || cleanRequestPath !== normalizedPath;
-  if (shouldRedirect) {
-    const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
-    return res.redirect(301, `https://${BASE_DOMAIN}${normalizedPath}${queryString}`);
+  const clean = req.path.replace(/\/{2,}/g, '/').toLowerCase();
+  if (isWww || clean !== norm) {
+    const qs = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+    return res.redirect(301, `https://${BASE_DOMAIN}${norm}${qs}`);
   }
   next();
 });
 
-// PAGE QUALITY VALIDATOR
 function validatePageQuality(filePath, pageName) {
   try {
     if (!fs.existsSync(filePath)) return false;
     const stats = fs.statSync(filePath);
-    const criticalPages = ['privacy-policy','terms-and-conditions','contact','affiliate-disclosure','editorial-policy','about'];
-    const minimumSize = criticalPages.includes(pageName) ? 200 : 500;
-    if (stats.size < minimumSize) return false;
+    const critical = ['privacy-policy','terms-and-conditions','contact','affiliate-disclosure','editorial-policy','about'];
+    const minSize = critical.includes(pageName) ? 200 : 500;
+    if (stats.size < minSize) return false;
     const content = fs.readFileSync(filePath, 'utf8');
     if (!content.includes('<title>') || !content.includes('description')) return false;
     return true;
-  } catch (err) {
-    console.error('[QUALITY VALIDATION ERROR]', err.message);
-    return false;
-  }
+  } catch (e) { return false; }
 }
 
-function getLastModified(filePath) {
-  try { return fs.statSync(filePath).mtime.toISOString(); }
-  catch { return new Date().toISOString(); }
+function getLastModified(fp) {
+  try { return fs.statSync(fp).mtime.toISOString(); } catch { return new Date().toISOString(); }
 }
 
-function buildBreadcrumbSchema(cleanPath) {
+function buildBreadcrumb(cleanPath) {
   const slug = cleanPath.replace(/\//g, '').replace(/-/g, ' ');
-  return {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": BASE_URL },
-      { "@type": "ListItem", "position": 2, "name": slug || "Home", "item": `${BASE_URL}${cleanPath}` }
-    ]
-  };
+  return { "@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+    {"@type":"ListItem","position":1,"name":"Home","item":BASE_URL},
+    {"@type":"ListItem","position":2,"name":slug||"Home","item":`${BASE_URL}${cleanPath}`}
+  ]};
 }
 
-// SEO & TRUST INJECTION
-function injectSEOInfrastructure(htmlContent, req, filePath) {
+function injectSEO(html, req, fp) {
   const cleanPath = req.path.split('?')[0];
-  const currentUrl = `${BASE_URL}${cleanPath}`;
-  const modifiedDate = getLastModified(filePath);
-  const hasQueryParams = Object.keys(req.query || {}).length > 0;
+  const url = `${BASE_URL}${cleanPath}`;
+  const mod = getLastModified(fp);
+  const hasQuery = Object.keys(req.query||{}).length > 0;
 
-  let robotsDirective = '<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">';
-  if (GLOBAL_NOINDEX || hasQueryParams || cleanPath.includes('/drafts')) {
-    robotsDirective = '<meta name="robots" content="noindex, follow">';
+  let robots = '<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">';
+  if (GLOBAL_NOINDEX || hasQuery || cleanPath.includes('/drafts')) {
+    robots = '<meta name="robots" content="noindex, follow">';
   }
 
-  const schemaGraph = {
-    "@context": "https://schema.org",
-    "@graph": [
-      { "@type": "Organization", "@id": `${BASE_URL}/#organization`, "name": "CompareAE", "url": BASE_URL, "logo": { "@type": "ImageObject", "url": `${BASE_URL}/assets/logo.png` } },
-      { "@type": "WebSite", "@id": `${BASE_URL}/#website`, "url": BASE_URL, "name": "CompareAE", "publisher": { "@id": `${BASE_URL}/#organization` } },
-      buildBreadcrumbSchema(cleanPath)
-    ]
-  };
+  const graph = {"@context":"https://schema.org","@graph":[
+    {"@type":"Organization","@id":`${BASE_URL}/#organization`,"name":"CompareAE","url":BASE_URL,"logo":{"@type":"ImageObject","url":`${BASE_URL}/assets/logo.png`}},
+    {"@type":"WebSite","@id":`${BASE_URL}/#website`,"url":BASE_URL,"name":"CompareAE","publisher":{"@id":`${BASE_URL}/#organization`}},
+    buildBreadcrumb(cleanPath)
+  ]};
 
-  const TRUST_PAGES = ['/', '/about', '/contact', '/privacy-policy', '/terms-and-conditions', '/affiliate-disclosure', '/editorial-policy'];
-  if (!TRUST_PAGES.includes(cleanPath)) {
-    schemaGraph['@graph'].push({
-      "@type": "Article",
-      "headline": "CompareAE Insurance Article",
-      "mainEntityOfPage": currentUrl,
-      "author": { "@type": "Person", "name": "CompareAE Editorial Team" },
-      "publisher": { "@id": `${BASE_URL}/#organization` },
-      "dateModified": modifiedDate
-    });
+  const trustPages = ['/','about','contact','privacy-policy','terms-and-conditions','affiliate-disclosure','editorial-policy'];
+  if (!trustPages.includes(cleanPath.replace('/',''))){
+    graph['@graph'].push({"@type":"Article","headline":"CompareAE Insurance Article","mainEntityOfPage":url,
+      "author":{"@type":"Person","name":"CompareAE Editorial Team"},
+      "publisher":{"@id":`${BASE_URL}/#organization`},"dateModified":mod});
   }
 
-  const schemaScript = `<script type="application/ld+json">${JSON.stringify(schemaGraph)}</script>`;
-  const canonicalTag = `<link rel="canonical" href="${currentUrl}" />`;
-  const authorMeta = `<meta name="author" content="CompareAE Editorial Team">`;
-  const modifiedMeta = `<meta property="article:modified_time" content="${modifiedDate}">`;
-  const reviewNotice = `<div class="editorial-review-notice" style="text-align:center;padding:15px;margin-top:30px;background:#f9f9f9;font-size:14px;border-top:1px solid #eee;color:#555;">Reviewed for factual consistency and UAE insurance relevance.</div>`;
+  const schema = `<script type="application/ld+json">${JSON.stringify(graph)}</script>`;
+  const notice = `<div style="text-align:center;padding:15px;margin-top:30px;background:#f9f9f9;font-size:14px;border-top:1px solid #eee;color:#555;">Reviewed for factual consistency and UAE insurance relevance.</div>`;
 
-  let injected = htmlContent.replace('</head>', `${robotsDirective}\n${canonicalTag}\n${authorMeta}\n${modifiedMeta}\n${schemaScript}\n</head>`);
-  injected = injected.replace('</body>', `${reviewNotice}\n</body>`);
-  return injected;
+  let out = html.replace('</head>', `${robots}\n<link rel="canonical" href="${url}" />\n<meta name="author" content="CompareAE Editorial Team">\n<meta property="article:modified_time" content="${mod}">\n${schema}\n</head>`);
+  out = out.replace('</body>', `${notice}\n</body>`);
+  return out;
 }
 
-// TRACK ENDPOINT
 app.post('/track', (req, res) => {
   try {
-    const entry = {
-      page: req.body.page || '/',
-      type: req.body.type || 'view',
-      company: req.body.company || '',
-      lang: req.body.lang || 'en',
-      dwellSeconds: req.body.dwellSeconds || 0,
-      isAffiliate: req.body.isAffiliate || false,
-      time: new Date().toISOString()
-    };
-    fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + '\n');
-  } catch (e) {}
-  res.status(200).json({ ok: true });
+    const e = { page:req.body.page||'/', type:req.body.type||'view', company:req.body.company||'',
+      lang:req.body.lang||'en', dwellSeconds:req.body.dwellSeconds||0,
+      isAffiliate:req.body.isAffiliate||false, time:new Date().toISOString() };
+    fs.appendFileSync(LOG_FILE, JSON.stringify(e)+'\n');
+  } catch(e){}
+  res.status(200).json({ok:true});
 });
 
-// HEALTH CHECK
 app.get('/health', (req, res) => {
-  res.set('X-Robots-Tag', 'noindex, nofollow');
-  res.status(200).json({ status: 'ok', launch_phase: true, canonical_domain: BASE_DOMAIN });
+  res.set('X-Robots-Tag','noindex, nofollow');
+  res.status(200).json({status:'ok', launch_phase:true, canonical_domain:BASE_DOMAIN});
 });
 
-// ROOT
 app.get('/', (req, res) => {
-  const filePath = path.join(PAGES_DIR, 'index.html');
-  if (!validatePageQuality(filePath, 'home')) {
+  const fp = path.join(PAGES_DIR,'index.html');
+  if (!validatePageQuality(fp,'home')) {
     const pages = fs.existsSync(PAGES_DIR)
-      ? fs.readdirSync(PAGES_DIR).filter(f => f.endsWith('.html'))
-          .map(f => `<li><a href="/${f.replace('.html','')}">${f.replace('.html','')}</a></li>`).join('')
+      ? fs.readdirSync(PAGES_DIR).filter(f=>f.endsWith('.html'))
+          .map(f=>`<li><a href="/${f.replace('.html','')}">${f.replace('.html','')}</a></li>`).join('')
       : '<li>No pages yet</li>';
     return res.send(`<!DOCTYPE html><html><body style="font-family:Arial;padding:30px"><h2 style="color:#0e7c7b">CompareAE</h2><ul style="line-height:2.5">${pages}</ul></body></html>`);
   }
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) return res.status(503).send('Temporary rendering issue.');
-    res.send(injectSEOInfrastructure(data, req, filePath));
+  fs.readFile(fp,'utf8',(err,data)=>{
+    if(err) return res.status(503).send('Temporary rendering issue.');
+    res.send(injectSEO(data,req,fp));
   });
 });
 
-// DYNAMIC PAGE ROUTING
 app.get('/:page', (req, res, next) => {
-  const pageName = req.params.page;
-  if (pageName.includes('.') || ['admin', 'api', 'drafts', 'health'].includes(pageName)) return next();
-  const filePath = path.join(PAGES_DIR, `${pageName}.html`);
-  if (!validatePageQuality(filePath, pageName)) {
-    res.set('X-Robots-Tag', 'noindex, nofollow');
-    const f404 = path.join(PAGES_DIR, '404.html');
+  const name = req.params.page;
+  if (name.includes('.') || ['admin','api','drafts','health'].includes(name)) return next();
+  const fp = path.join(PAGES_DIR, `${name}.html`);
+  if (!validatePageQuality(fp, name)) {
+    res.set('X-Robots-Tag','noindex, nofollow');
+    const f404 = path.join(PAGES_DIR,'404.html');
     return fs.existsSync(f404) ? res.status(404).sendFile(f404) : res.status(404).send('404 - Page Not Found');
   }
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err || !data) return res.status(503).send('Temporary rendering issue.');
-    try { res.send(injectSEOInfrastructure(data, req, filePath)); }
-    catch (renderError) { res.status(503).send('Rendering validation failed.'); }
+  fs.readFile(fp,'utf8',(err,data)=>{
+    if(err||!data) return res.status(503).send('Temporary rendering issue.');
+    try { res.send(injectSEO(data,req,fp)); } catch(e){ res.status(503).send('Rendering error.'); }
   });
 });
 
-// GLOBAL 404
 app.use((req, res) => {
-  res.set('X-Robots-Tag', 'noindex, nofollow');
-  const f404 = path.join(PAGES_DIR, '404.html');
+  res.set('X-Robots-Tag','noindex, nofollow');
+  const f404 = path.join(PAGES_DIR,'404.html');
   res.status(404);
   if (fs.existsSync(f404)) return res.sendFile(f404);
   res.send('404 - Resource Not Found.');
@@ -235,6 +179,5 @@ const server = app.listen(PORT, () => {
   console.log(`[LAUNCH PHASE ACTIVE] CompareAE running on port ${PORT}`);
   if (GLOBAL_NOINDEX) console.warn('[WARNING] GLOBAL_NOINDEX ENABLED');
 });
-
 server.timeout = 10000;
 process.on('SIGTERM', () => { server.close(() => { process.exit(0); }); });

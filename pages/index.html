@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CompareAE — Compare Car Insurance in the UAE | Free Comparison</title>
+  <meta name="description" content="CompareAE helps UAE residents and expats compare car insurance options across Dubai, Abu Dhabi, and Sharjah. Independent, free, and unbiased.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;background:#f4f6fb;color:#1a1a2e}
+    nav{background:white;padding:15px 40px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ebebf0;position:sticky;top:0;z-index:100}
+    .logo{font-size:1.4em;font-weight:700;color:#0e7c7b;text-decoration:none}
+    .logo span{color:#f72585}
+    .nav-links a{margin-left:20px;color:#444;text-decoration:none;font-size:.9em}
+    .nav-links a:hover{color:#0e7c7b}
+    .hero{background:linear-gradient(135deg,#0e7c7b,#0a5c5b);color:white;padding:44px 20px;text-align:center}
+    .hero h1{font-size:2em;font-weight:700;margin-bottom:14px;line-height:1.3}
+    .hero p{font-size:1.1em;opacity:.9;max-width:620px;margin:0 auto 24px}
+    .trust-pills{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+    .pill{background:rgba(255,255,255,.15);padding:6px 16px;border-radius:20px;font-size:.85em}
+    .section{max-width:1100px;margin:50px auto;padding:0 20px}
+    .section-heading{font-size:1.3em;font-weight:700;color:#1a1a2e;margin-bottom:24px;padding-bottom:10px;border-bottom:2px solid #e8e8f0}
+    .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
+    .page-card{background:white;border-radius:14px;padding:22px 20px;text-decoration:none;color:#1a1a2e;box-shadow:0 3px 14px rgba(0,0,0,.07);transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;gap:8px;border:1px solid transparent}
+    .page-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.13);border-color:#0e7c7b}
+    .page-card .tag{font-size:.75em;font-weight:700;color:#0e7c7b;text-transform:uppercase;letter-spacing:.04em}
+    .page-card h2{font-size:1em;font-weight:700;line-height:1.4}
+    .page-card .desc{font-size:.85em;color:#666;line-height:1.5}
+    .page-card .arrow{font-size:.85em;color:#f72585;font-weight:700;margin-top:4px}
+    .ar-section{direction:rtl;text-align:right}
+    .ar-section .section-heading{text-align:right}
+    .trust-bar{background:white;border-radius:14px;padding:28px 30px;box-shadow:0 3px 14px rgba(0,0,0,.07);display:flex;justify-content:center;gap:40px;flex-wrap:wrap;margin:50px auto;max-width:1100px}
+    .trust-item{text-align:center;color:#444;padding:6px 12px;border-left:2px solid #e0e0ea}
+    .trust-item:first-child{border-left:none}
+    .trust-item .label{font-size:.88em;font-weight:700;color:#0e7c7b;margin-bottom:3px}
+    .trust-item .sublabel{font-size:.76em;color:#888}
+    .disclaimer-box{max-width:860px;margin:0 auto 40px;padding:16px 20px;background:#fff8e1;border-left:4px solid #ffc107;border-radius:8px;font-size:.85em;color:#555;line-height:1.7}
+    footer{background:#1a1a2e;color:#aaa;text-align:center;padding:30px 20px;font-size:.85em;line-height:2}
+    footer a{color:#0e7c7b;text-decoration:none;margin:0 8px}
+    footer a:hover{text-decoration:underline}
+    .footer-disclaimer{font-size:13px;line-height:1.6;color:#aaa;margin-bottom:15px;padding:15px;background:#12122a;border:1px solid #2a2a4e;border-radius:8px;text-align:left}
+    @media(max-width:768px){
+      nav{padding:12px 16px}
+      .hero{padding:36px 16px}
+      .hero h1{font-size:1.5em}
+      .trust-bar{gap:20px;padding:20px 16px}
+      .section{margin:32px auto}
+    }
+    @media(max-width:480px){
+      .hero{padding:26px 14px}
+      .hero h1{font-size:1.25em}
+      .hero p{font-size:.95em}
+      .trust-bar{flex-direction:column;align-items:center;gap:12px}
+      .trust-item{border-left:none;border-top:1px solid #e0e0ea;padding:8px 0;width:100%}
+      .trust-item:first-child{border-top:none}
+      .cards-grid{grid-template-columns:1fr}
+      .section{margin:20px auto;padding:0 14px}
+    }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/" class="logo">Compare<span>AE</span></a>
+  <div class="nav-links">
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/privacy-policy">Privacy</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>Compare Car Insurance in the UAE</h1>
+  <p>Independent comparison across Dubai, Abu Dhabi, and Sharjah. Free, unbiased, and built for UAE residents and expats.</p>
+  <div class="trust-pills">
+    <span class="pill">100% Free</span>
+    <span class="pill">Licensed Companies</span>
+    <span class="pill">No Policy Sales</span>
+    <span class="pill">UAE-Focused</span>
+  </div>
+</div>
+
+<div class="trust-bar" style="margin-top:40px">
+  <div class="trust-item"><div class="label">Independent</div><div class="sublabel">No insurer influence</div></div>
+  <div class="trust-item"><div class="label">Always Free</div><div class="sublabel">Zero cost to compare</div></div>
+  <div class="trust-item"><div class="label">Editorial Standards</div><div class="sublabel">Fact-checked content</div></div>
+  <div class="trust-item"><div class="label">EN + AR</div><div class="sublabel">Bilingual coverage</div></div>
+</div>
+
+<div class="section">
+  <h2 class="section-heading">Car Insurance Comparisons — English</h2>
+  <div class="cards-grid">
+    <a href="/third-party-car-insurance-dubai" class="page-card">
+      <span class="tag">Dubai · Third Party</span>
+      <h2>Third Party Car Insurance in Dubai</h2>
+      <p class="desc">Compare TPL options from licensed insurers in Dubai. Prices vary by driver profile.</p>
+      <span class="arrow">Compare now →</span>
+    </a>
+    <a href="/toyota-corolla-insurance-dubai" class="page-card">
+      <span class="tag">Dubai · Toyota</span>
+      <h2>Toyota Corolla Insurance Dubai</h2>
+      <p class="desc">Insurance options for Toyota Corolla owners in Dubai. Comprehensive and TPL available.</p>
+      <span class="arrow">Compare now →</span>
+    </a>
+    <a href="/best-car-insurance-sharjah" class="page-card">
+      <span class="tag">Sharjah · All Types</span>
+      <h2>Car Insurance Options in Sharjah</h2>
+      <p class="desc">Compare car insurance from providers operating in Sharjah. Rates vary by vehicle and profile.</p>
+      <span class="arrow">Compare now →</span>
+    </a>
+    <a href="/cheap-car-insurance-uae-expats" class="page-card">
+      <span class="tag">UAE · Expats</span>
+      <h2>Car Insurance for Expats in the UAE</h2>
+      <p class="desc">Insurance options suited to UAE expat drivers. TPL and comprehensive plans compared.</p>
+      <span class="arrow">Compare now →</span>
+    </a>
+    <a href="/nissan-sunny-insurance-abu-dhabi" class="page-card">
+      <span class="tag">Abu Dhabi · Nissan</span>
+      <h2>Nissan Sunny Insurance in Abu Dhabi</h2>
+      <p class="desc">Compare insurance plans for Nissan Sunny in Abu Dhabi. Coverage options explained.</p>
+      <span class="arrow">Compare now →</span>
+    </a>
+  </div>
+</div>
+
+<div class="section ar-section">
+  <h2 class="section-heading">مقارنة تأمين السيارات — بالعربي</h2>
+  <div class="cards-grid" style="direction:rtl">
+    <a href="/تأمين-ضد-الغير-دبي-رخيص" class="page-card" style="text-align:right">
+      <span class="tag">دبي · ضد الغير</span>
+      <h2>تأمين ضد الغير في دبي</h2>
+      <p class="desc">قارن خيارات التأمين ضد الغير من شركات مرخصة في دبي. الأسعار تختلف حسب بياناتك.</p>
+      <span class="arrow" style="color:#f72585">قارن الآن ←</span>
+    </a>
+    <a href="/تأمين-تويوتا-كورولا-دبي" class="page-card" style="text-align:right">
+      <span class="tag">دبي · تويوتا</span>
+      <h2>تأمين تويوتا كورولا في دبي</h2>
+      <p class="desc">خيارات تأمين لأصحاب سيارات تويوتا كورولا في دبي. شامل وضد الغير.</p>
+      <span class="arrow" style="color:#f72585">قارن الآن ←</span>
+    </a>
+    <a href="/أفضل-تأمين-سيارة-الشارقة" class="page-card" style="text-align:right">
+      <span class="tag">الشارقة · جميع الأنواع</span>
+      <h2>تأمين السيارة في الشارقة</h2>
+      <p class="desc">قارن عروض تأمين السيارات من شركات تعمل في الشارقة. الأسعار تختلف حسب المركبة.</p>
+      <span class="arrow" style="color:#f72585">قارن الآن ←</span>
+    </a>
+    <a href="/تأمين-سيارة-رخيص-للمقيمين-الإمارات" class="page-card" style="text-align:right">
+      <span class="tag">الإمارات · المقيمون</span>
+      <h2>تأمين السيارة للمقيمين في الإمارات</h2>
+      <p class="desc">خيارات تأمين مناسبة للمقيمين في الإمارات. مقارنة شاملة وضد الغير.</p>
+      <span class="arrow" style="color:#f72585">قارن الآن ←</span>
+    </a>
+    <a href="/تأمين-نيسان-صني-أبوظبي" class="page-card" style="text-align:right">
+      <span class="tag">أبوظبي · نيسان</span>
+      <h2>تأمين نيسان صني في أبوظبي</h2>
+      <p class="desc">قارن خيارات تأمين نيسان صني في أبوظبي. تغطيات متعددة موضحة بشفافية.</p>
+      <span class="arrow" style="color:#f72585">قارن الآن ←</span>
+    </a>
+  </div>
+</div>
+
+<div class="disclaimer-box">
+  <strong>Important Notice:</strong> CompareAE is an independent informational and comparison platform. We do not issue insurance policies, act as licensed insurance brokers, or provide financial advice. Insurance products, pricing, approvals, and coverage terms are handled directly by insurers or licensed partners. Prices shown are indicative and vary by individual driver profile.
+</div>
+
+<footer>
+  <div style="max-width:860px;margin:0 auto">
+    <div class="footer-disclaimer">
+      CompareAE is an independent informational and comparison platform. We do not issue insurance policies, act as licensed insurance brokers, or provide financial advice. Insurance products, pricing, approvals, and coverage terms are handled directly by insurers or licensed partners.
+    </div>
+    <p>
+      <a href="/">Home</a>
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/privacy-policy">Privacy Policy</a>
+      <a href="/terms-and-conditions">Terms</a>
+      <a href="/affiliate-disclosure">Affiliate Disclosure</a>
+      <a href="/editorial-policy">Editorial Policy</a>
+    </p>
+    <p style="margin-top:10px;color:#666">© 2026 CompareAE — Independent comparison platform. Not affiliated with any insurer.</p>
+  </div>
+</footer>
+</body>
+</html>

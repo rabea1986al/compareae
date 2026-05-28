@@ -6,40 +6,38 @@
   <title>Compare Third Party Car Insurance in Dubai</title>
   <meta name="description" content="Find the best third party car insurance offers in Dubai">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter', sans-serif;background:#f4f6fb;color:#1a1a2e}
     nav{background:white;padding:15px 40px;display:flex;align-items:center;
-        justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,.08);
-        position:sticky;top:0;z-index:100}
-    .logo{font-size:1.4em;font-weight:900;color:#0e7c7b}
+        justify-content:space-between;border-bottom:1px solid #ebebf0;position:sticky;top:0;z-index:100}
+    .logo{font-size:1.4em;font-weight:700;color:#0e7c7b;text-decoration:none}
     .logo span{color:#f72585}
     .nav-badge{background:#e8f5e9;color:#2e7d32;padding:5px 12px;
                border-radius:20px;font-size:.82em}
     .hero{background:linear-gradient(135deg,#0e7c7b,#0a5c5b);color:white;
-          padding:60px 20px;text-align:center;position:relative;overflow:hidden}
-    .hero::before{content:'🚗';font-size:120px;position:absolute;opacity:.07;
-                  bottom:-20px;left:50%;transform:translateX(-50%)}
-    .hero h1{font-size:2em;font-weight:900;margin-bottom:12px;line-height:1.3}
+          padding:44px 20px;text-align:center;position:relative;overflow:hidden}
+    .hero h1{font-size:2em;font-weight:700;margin-bottom:12px;line-height:1.3}
     .hero p{font-size:1.1em;opacity:.9;margin-bottom:25px}
     .trust-pills{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
     .pill{background:rgba(255,255,255,.15);padding:6px 16px;border-radius:20px;font-size:.85em}
     .section-title{text-align:center;padding:40px 20px 20px;font-size:1.4em;font-weight:700}
     .cards-wrapper{display:flex;justify-content:center;gap:20px;flex-wrap:wrap;
                    padding:10px 20px 40px;max-width:1200px;margin:0 auto}
-    .card{background:white;border-radius:16px;padding:28px 22px;width:210px;
+    .card{background:white;border-radius:16px;padding:24px 20px;width:210px;
           text-align:center;position:relative;box-shadow:0 4px 20px rgba(0,0,0,.08);
           transition:transform .2s,box-shadow .2s;border:2px solid transparent}
     .card:hover{transform:translateY(-5px);box-shadow:0 8px 30px rgba(0,0,0,.15)}
-    .card.featured{border-color:#f72585;transform:scale(1.05)}
-    .card.featured:hover{transform:scale(1.05) translateY(-5px)}
+    .card.featured{border-color:#f72585;box-shadow:0 6px 28px rgba(247,37,133,.22);outline:2px solid #f72585}
+    .card.featured:hover{transform:translateY(-5px);box-shadow:0 10px 36px rgba(247,37,133,.30)}
     .badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);
            background:#f72585;color:white;padding:4px 14px;border-radius:20px;
            font-size:.78em;font-weight:700;white-space:nowrap}
     .company-logo{font-size:2.2em;margin-bottom:6px}
     .company-name{font-size:1em;font-weight:700;margin-bottom:10px}
-    .price{font-size:1.7em;font-weight:900;color:#0e7c7b;margin-bottom:4px}
+    .price{font-size:1.7em;font-weight:700;color:#0e7c7b;margin-bottom:4px}
     .currency{font-size:.48em;color:#666}
     .stars{color:#ffc107;font-size:1em;margin-bottom:14px}
     .features{list-style:none;margin-bottom:18px;text-align:left}
@@ -54,43 +52,47 @@
                 border-radius:8px;font-size:.85em;color:#555;line-height:1.7}
     .faq-section{max-width:900px;margin:0 auto 50px;padding:0 20px}
     .faq-section h2{font-size:1.3em;margin-bottom:20px;color:#0e7c7b}
-    details{background:white;border-radius:10px;margin-bottom:10px;
-            padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:pointer}
-    summary{font-weight:700;color:#1a1a2e;list-style:none}
-    summary::after{content:' ＋';float:right;color:#0e7c7b}
-    details[open] summary::after{content:' −'}
+    details{background:white;border-radius:10px;margin-bottom:8px;
+            padding:14px 16px;border:1px solid #f0f0f5;cursor:pointer}
+    summary{font-weight:700;color:#1a1a2e;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    summary::after{content:'+';color:#0e7c7b;font-size:1.1em;flex-shrink:0}
+    details[open] summary::after{content:'−'}
     details p{margin-top:10px;color:#555;font-size:.92em;line-height:1.7}
     footer{background:#1a1a2e;color:#aaa;text-align:center;padding:25px;
            font-size:.82em;line-height:1.8}
     footer a{color:#0e7c7b;text-decoration:none}
-    .wa-float{position:fixed;bottom:25px;right:25px;
-              background:#25d366;color:white;padding:14px 20px;border-radius:50px;
-              text-decoration:none;font-weight:700;font-size:.95em;
-              box-shadow:0 4px 15px rgba(37,211,102,.4);
-              display:flex;align-items:center;gap:8px;z-index:999}
     @media(max-width:768px){
-      .hero h1{font-size:1.4em}
+      nav{padding:12px 16px}
+      .hero{padding:36px 16px}
+      .hero h1{font-size:1.5em}
       .card{width:100%;max-width:340px}
-      .card.featured{transform:scale(1)}
+      .card.featured{transform:none}
+    }
+    @media(max-width:480px){
+      .hero{padding:26px 14px}
+      .hero h1{font-size:1.3em}
+      .section-title{font-size:1.2em;padding:16px 14px 10px}
+      .faq-section{margin:0 14px 20px}
+      footer{padding:20px 14px}
     }
   </style>
 </head>
 <body>
 <nav>
-  <div class="logo">Compare<span>AE</span></div>
-  <div class="nav-badge">🔒 100% Free Comparison</div>
+  <a href="/" class="logo">Compare<span>AE</span></a>
+  <div class="nav-badge">100% Free Comparison</div>
 </nav>
 <section class="hero">
   <h1>Compare Third Party Car Insurance in Dubai</h1>
   <p>Find the best third party car insurance offers in Dubai</p>
   <div class="trust-pills">
-    <span class="pill">✅ No Hidden Fees</span>
-    <span class="pill">⚡ Instant Results</span>
-    <span class="pill">🏆 Licensed Companies</span>
-    <span class="pill">🔒 Your Data is Safe</span>
+    <span class="pill">No Hidden Fees</span>
+    <span class="pill">Instant Results</span>
+    <span class="pill">Licensed Companies</span>
+    <span class="pill">Your Data is Safe</span>
   </div>
 </section>
-<p class="section-title">Choose Your Plan — Direct Comparison</p>
+<h2 class="section-title">Choose Your Plan — Direct Comparison</h2>
 <div class="cards-wrapper">
     <div class="card ">
       
@@ -186,7 +188,7 @@
     <p style="margin-top:10px;color:#666;font-size:.85em">© 2026 CompareAE — Independent comparison platform. Not affiliated with any insurer.</p>
   </div>
 </footer>
-<a class="wa-float" href="https://wa.me/" target="_blank">💬 Need Help?</a>
+
 <script>
   document.querySelectorAll('.cta-btn').forEach(btn => {
     btn.addEventListener('click', function() {
